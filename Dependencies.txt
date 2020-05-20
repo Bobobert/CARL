@@ -1,0 +1,19 @@
+# Libraries required for rollout
+
+import numpy as np
+import math
+
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import seaborn as sns
+import imageio
+
+from multiprocessing import Pool
+import os
+
+import tqdm
+
+# Files required to rollout
+forest_fire
+helicopter
+rollout

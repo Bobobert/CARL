@@ -24,6 +24,7 @@ class ForestFire():
         self.fire =  fire
         # Declare the grid, random initialization
         self.grid = self.random_grid(self.n_row, self.n_col, self.p_init_tree)
+        
     def __repr__(self):
         print('Tree represented as: {}'.format(self.tree))
         print('Empty represented as: {}'.format(self.empty))

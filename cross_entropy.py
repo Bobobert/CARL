@@ -8,7 +8,7 @@ Created on Tue Feb 18 18:02:41 2020
 
 import helicopter
 import numpy as np
-import heuristic
+import heuristic as h
 
 import torch
 import torch.nn as nn
@@ -164,7 +164,6 @@ def get_batch(net, steps_in_episode, batch_size, cpus):
         batch.append( play_episode(net, steps_in_episode) )
     return batch
 
-heuristic()
 
 def get_batch_heuristic():
     pass
