@@ -55,9 +55,10 @@ class Policy():
 class R_ITER():
     ### Class for to save a bit of space in creation of iterables with repeated items
     ### Env must have a .Copy method
-    def __init__(self, env, H, Action_set, K, N_samples):
+    def __init__(self, env, H, alpha, Action_set, K, N_samples):
         self.env = env
         self.H_ref = H
+        self.alpha = alpha
         self.actions = Action_set
         self.K = K
         self.N_samples = N_samples
@@ -78,38 +79,44 @@ class R_ITER():
             self.index += 1
             return (self.env.Copy(), # Always a new copy of the environment. This is a new object.
                     self.actions[i], # Different action
-                    self.H_ref, self.K, self.N_samples)
+                    self.H_ref, 
+                    self.alpha,
+                    self.K,
+                    self.N_samples)
 
     def __del__(self):
         return None
 
 def sample_trayectory(ARG):
-        # This sampler is design to run in one thread for parallel calling
-        # Make sure the env variable is referencing a copy of the original env
-        env, action, H, k, N_samples = ARG 
-        initial_checkpoint = env.make_checkpoint()
-        total_cost = 0
-        for _ in range(N_samples):
-            # Executing the first action to minimize
-            observation, ac_cost, done, info = env.step(action)
-            # Executing the heuristic for k steps
-            for _ in range(k):
-                action_from_H = H(observation, env)
-                observation, cost, done, info = env.step(action_from_H)
-                # Extract heuristic cost
-                ac_cost += cost
-            #End of the heuristic running
-            # Termination value is estimated to 0 at the moment. 
-            # Here could be an approximator from the last observationfrom the environment.
-            ac_cost += 0
-            # Adding the sample cost to the average cost of the samples
-            total_cost += ac_cost / N_samples
-            # Restarting the environment from the initial state.
-            env.load_checkpoint(initial_checkpoint)
-        del env # Closing the copy of the environment
-        return (action, total_cost)
+    # This sampler is design to run in one thread for parallel calling
+    # Make sure the env variable is referencing a copy of the original env
+    env, action, H, alpha, k, N_samples = ARG 
+    initial_checkpoint = env.make_checkpoint()
+    total_cost = 0
+    for _ in range(N_samples):
+        ALPHA = alpha
+        # Executing the first action to minimize
+        observation, ac_cost, done, info = env.step(action)
+        ac_cost = ALPHA * ac_cost
+        # Executing the heuristic for k steps
+        for _ in range(k):
+            action_from_H = H(observation, env)
+            observation, cost, done, info = env.step(action_from_H)
+            # Extract heuristic cost
+            ALPHA = ALPHA * alpha
+            ac_cost += cost * ALPHA
+        #End of the heuristic running
+        # Termination value is estimated to 0 at the moment. 
+        # Here could be an approximator from the last observationfrom the environment.
+        ac_cost += 0
+        # Adding the sample cost to the average cost of the samples
+        total_cost += ac_cost / N_samples
+        # Restarting the environment from the initial state.
+        env.load_checkpoint(initial_checkpoint)
+    del env # Closing the copy of the environment
+    return (action, total_cost)
 
-def Rollout(env, H, K=-1, N_samples=10, n_workers=-1):
+def Rollout(env, H, alpha=1, K=-1, N_samples=10, n_workers=-1):
     ### Funtion to do a rollout from the actions available and the use of the Heuristic H.
     ### The argument k is to truncate how many steps the heuristic is going to execute.
     ### Environment has to have a copy function.
@@ -133,13 +140,15 @@ def Rollout(env, H, K=-1, N_samples=10, n_workers=-1):
     else: #Truncated Rollout
         # Creation of an iterable with the action set to make the samples
         #to_evaluate = [(env.Copy(), action, H, K, N_samples) for action in actions]
-        to_evaluate = R_ITER(env, H, actions, K, N_samples)
+        to_evaluate = R_ITER(env, H, alpha, actions, K, N_samples)
         if parallel:
             # Execute the sampling in multiple threads of the cpu with map function
             # Usually this perfoms better than single thread for long trayectories/number of samples
             # If the trayectories are short, of the number of samples is little, a sequential run could perform better
             p = Pool(processes=cpus)
-            costs = p.imap_unordered(sample_trayectory, to_evaluate, math.ceil(len(actions)/cpus))
+            costs = p.imap_unordered(sample_trayectory,
+                                     to_evaluate, 
+                                     math.ceil(len(actions)/cpus))
         else:
             # Execute an evaluation at a time in one cpu thread
             costs = []

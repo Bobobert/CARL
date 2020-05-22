@@ -9,6 +9,7 @@ Created on Mon Jan 27 17:16:03 2020
 # Math
 import numpy as np
 import math
+import time
 
 # Visualization
 import matplotlib.pyplot as plt
@@ -45,6 +46,7 @@ class Helicopter(forest_fire.ForestFire):
         self.checkpoint_counter = 0
         self.frames = [] # Potential high memory usage
         self.gif = gif_count
+        self.hits_round = 0
         if pos_row is None:
             # Start aprox in the middle
             self.pos_row = math.ceil(self.n_row/2) - 1
@@ -78,7 +80,8 @@ class Helicopter(forest_fire.ForestFire):
         termination = False
         if self.defrost != 0:
             self.new_pos(action)
-            self.hits += self.extinguish_fire()
+            self.hits_round = self.extinguish_fire()
+            self.hits += self.hits_round
             self.defrost -= 1
             obs = (self.grid, np.array([self.pos_row, self.pos_col]))
             # Don't delay the reward
@@ -90,7 +93,8 @@ class Helicopter(forest_fire.ForestFire):
             # Run fire simulation
             self.update()
             self.new_pos(action)
-            self.hits += self.extinguish_fire()
+            self.hits_round = self.extinguish_fire()
+            self.hits += self.hits_round
             self.defrost = self.freeze
             obs = (self.grid, np.array([self.pos_row, self.pos_col]))
             reward = self.calculate_reward()
@@ -101,8 +105,9 @@ class Helicopter(forest_fire.ForestFire):
         for row in range(self.n_row):
             for col in range(self.n_col):
                 if self.grid[row][col] == self.fire:
-                    reward += 4 # Making the reward on the negative sense to calculate the cost to minimize.
-        reward -= 2*self.hits # Resting a point per fire put out
+                    reward += 9 # Making the reward on the negative sense to calculate the cost to minimize.
+        reward -= 2*self.hits_round # Resting a point per fire put out
+        self.hits_round = 0 
         return reward
     def new_pos(self, action):
         self.pos_row = self.pos_row if action == 5\
@@ -175,15 +180,18 @@ class Helicopter(forest_fire.ForestFire):
         self.rgba_mat = rgba_mat
         return rgba_mat
 
-    def render_frame(self, show=True, wait_time=-1):
+    def render_frame(self, show=True, wait_time=-1, title=''):
         # Plot style
         sns.set_style('whitegrid')
         # Main Plot
-        if show:
+        if show and wait_time > 0:
             plt.ion()
         fig = plt.imshow(self.grid_to_rgba(), aspect='equal', animated=True)
         # Title showing Reward
-        plt.title('Reward {}'.format(self.current_reward))
+        if title ==  '':
+            plt.title('Reward {}'.format(self.current_reward))
+        else:
+            plt.title(title)
         # Modify Axes
         ax = plt.gca()
         # Major ticks
@@ -215,9 +223,9 @@ class Helicopter(forest_fire.ForestFire):
                 plt.show()
         return fig
 
-    def frame(self):
+    def frame(self, title=''):
         # Saves a frame on the buffer of frames of the object
-        fig = self.render_frame(show=False)
+        fig = self.render_frame(show=False, title=title)
         fig.canvas.draw()      # draw the canvas, cache the renderer
         image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
         image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
@@ -228,7 +236,10 @@ class Helicopter(forest_fire.ForestFire):
     def render(self, fps=5, flush=True):
         # Function to generate gif images of a sequence of Frames
         self.gif += 1
-        imageio.mimsave("./Helicopter_%d.gif"%self.gif, self.frames, fps=fps)
+        self.frame(title='Fin!')
+        imageio.mimsave("./Runs/Helicopter_{0}_{1}.gif".format(self.gif, 
+                        time.strftime("%d-%m-%Y-%H:%M:%S", time.gmtime())), 
+                        self.frames, fps=fps)
         if flush:
             self.frames = []
         return None
@@ -267,7 +278,7 @@ class Helicopter(forest_fire.ForestFire):
 
     def Encode(self):
         # Enconding strings for the grid just in line form
-        s = str(self.pos_col)
+        s = str(self.pos_row) + str(self.pos_col) 
         for j in range(self.n_row):
             for i in range(self.n_col):
                 cell = self.grid[j,i]
